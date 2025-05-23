@@ -1,4 +1,4 @@
-# EvoCA: Co-evolutionary Cellular Automata
+# Co-evolutionary Cellular Automata
 
 **Turing-complete gladiators in the Game of Life.**
 
