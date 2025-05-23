@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Heatmap Visualization</title>
+    <style>
+        canvas { border: 1px solid black; background: black; margin: 10px; }
+        .heatmap-container { display: flex; }
+        h3 { color: white; text-align: center; }
+        body { background: #333; margin: 0; padding: 10px; }
+    </style>
+</head>
+<body>
+    <div class="heatmap-container">
+        <div>
+            <h3>Population A</h3>
+            <canvas id="heatmapA" width="512" height="400"></canvas>
+        </div>
+        <div>
+            <h3>Population B</h3>
+            <canvas id="heatmapB" width="512" height="400"></canvas>
+        </div>
+        <div>
+            <h3>Population Average</h3>
+            <canvas id="heatmapAverage" width="512" height="400"></canvas>
+        </div>
+    </div>
+    <button onclick="saveHeatmaps()">Save Heatmaps as PNG</button>
+    <script>
+        const sizex = 233; // Match the values from repl.js
+        const sizey = 233;
+
+        async function loadHeatmaps(file) {
+            try {
+                const response = await fetch(`storage/${file}`);
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch ${file}: ${response.statusText}`);
+                }
+                const data = await response.json();
+                console.log(`Loaded ${file}:`, data); // Debug log
+                return data;
+            } catch (error) {
+                console.error(`Error loading ${file}:`, error);
+                return [];
+            }
+        }
+
+        function drawHeatmap(heatmaps, canvasId) {
+            const canvas = document.getElementById(canvasId);
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+            const skip = 1; // Adjust if needed for visibility
+            const isAverageHeatmap = canvasId === 'heatmapAverage';
+            const fitnessMax = isAverageHeatmap ? (sizex * sizey) : (heatmaps[0].length - 1);
+            const epochCount = heatmaps.length;
+
+            const displayedEpochCount = Math.ceil(epochCount / skip);
+
+            // Clear canvas
+            ctx.fillStyle = 'black';
+            ctx.fillRect(0, 0, width, height);
+
+            const cellWidth = width / fitnessMax;
+            const cellHeight = height / displayedEpochCount;
+
+            if (isAverageHeatmap) {
+                // For heatmapAverage: Plot combined average fitness as white pixels
+                for (let e = 0; e < displayedEpochCount; e++) {
+                    const epochIndex = e * skip;
+                    if (epochIndex >= epochCount) break;
+                    const avgFitness = heatmaps[epochIndex]; // Direct value, not an object
+                    if (typeof avgFitness !== 'number' || isNaN(avgFitness)) {
+                        console.warn(`Invalid combined fitness at epoch ${epochIndex}: ${avgFitness}`);
+                        continue;
+                    }
+                    if (avgFitness < 0 || avgFitness > fitnessMax) {
+                        console.warn(`Combined fitness out of range at epoch ${epochIndex}: ${avgFitness}`);
+                        continue;
+                    }
+                    const x = avgFitness * cellWidth;
+                    const y = e * cellHeight;
+                    ctx.fillStyle = 'white';
+                    //ctx.fillRect(x, y, cellWidth, cellHeight);
+					ctx.fillRect(x, y, 1, 1);
+                }
+            } else {
+                // For heatmapA and heatmapB: Plot fitness distribution
+                let maxCount = 0;
+                heatmaps.forEach(arr => {
+                    maxCount = Math.max(maxCount, Math.max(...arr));
+                });
+
+                for (let e = 0; e < displayedEpochCount; e++) {
+                    const epochIndex = e * skip;
+                    if (epochIndex >= epochCount) break;
+                    for (let f = 0; f <= fitnessMax; f++) {
+                        const count = heatmaps[epochIndex][f];
+                        if (count > 0) {
+                            ctx.fillStyle = 'white';
+                            ctx.fillRect(f * cellWidth, e * cellHeight, cellWidth, cellHeight);
+                        }
+                    }
+                }
+
+                // Compute and draw mean fitness as green dots
+                ctx.fillStyle = 'green';
+                for (let e = 0; e < displayedEpochCount; e++) {
+                    const epochIndex = e * skip;
+                    if (epochIndex >= epochCount) break;
+
+                    let totalFitness = 0;
+                    let totalIndividuals = 0;
+                    for (let f = 0; f < heatmaps[epochIndex].length; f++) {
+                        const count = heatmaps[epochIndex][f];
+                        totalFitness += f * count;
+                        totalIndividuals += count;
+                    }
+                    const meanFitness = totalIndividuals > 0 ? totalFitness / totalIndividuals : 0;
+
+                    const x = meanFitness * cellWidth;
+                    const y = e * cellHeight + cellHeight / 2;
+                    ctx.beginPath();
+                    ctx.arc(x, y, 2, 0, 2 * Math.PI);
+                    ctx.fill();
+                }
+            }
+        }
+
+        function saveHeatmaps() {
+            const canvases = ['heatmapA', 'heatmapB', 'heatmapAverage'];
+            canvases.forEach(canvasId => {
+                const canvas = document.getElementById(canvasId);
+                const link = document.createElement('a');
+                link.download = `${canvasId}.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            });
+        }
+
+        Promise.all([
+            loadHeatmaps('heatmapA.json'),
+            loadHeatmaps('heatmapB.json'),
+            loadHeatmaps('heatmapAverage.json')
+        ]).then(([heatmapsA, heatmapsB, heatmapsAverage]) => {
+            drawHeatmap(heatmapsA, 'heatmapA');
+            drawHeatmap(heatmapsB, 'heatmapB');
+            drawHeatmap(heatmapsAverage, 'heatmapAverage');
+        }).catch(error => {
+            console.error('Error loading heatmaps:', error);
+        });
+    </script>
+</body>
+</html>

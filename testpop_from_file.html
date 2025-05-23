@@ -1,0 +1,40 @@
+<!DOCTYPE html> 
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Cellular Co-Evolution</title>
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <script type="text/javascript" src="testpop_from_file.js"></script>
+    <style>
+        .pair-container { display: flex; margin-bottom: 10px; }
+        .field-container { margin-right: 20px; }
+        .field-label { font-weight: bold; }
+        .canv0 { display: flex; align-items: center; }
+        canvas { border: 1px solid black; }
+        .topbuttons { margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <div class="topbuttons">
+        <input type="button" value="Start" onClick="start();" />
+        <input type="button" value="Stop" onClick="stop();" />
+        <input type="button" value="One Step" onClick="onestep();" />
+        <input type="button" value="Clear" onClick="clearc();" />
+        <input type="button" value="Count 5000" onClick="count100(5000);" />
+        <input type="button" value="Count 1000" onClick="count100(1000);" />
+        <input type="button" value="Count 500" onClick="count100(500);" />
+        <input type="button" value="Count 200" onClick="count100(200);" />
+        <input type="button" value="Count 100" onClick="count100(100);" />
+        <br />
+        <input type="button" value="restore Best Populations" onClick="restoreBestPopulations();" />
+    </div>
+    <div id="canv"></div>
+    <div id="console-log0"></div>
+    <div id="console-log1"></div>
+    <div id="console-log2"></div>
+    <div id="console-log3"></div>
+    <script>
+        init();		
+    </script>
+</body>
+</html>
