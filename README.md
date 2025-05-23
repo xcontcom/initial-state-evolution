@@ -51,7 +51,7 @@ Here, we **fix the rule** (Conway’s Game of Life) and evolve the **initial fie
 ## 📁 Repo Structure
 
 ```
-📁 evo-ca/
+📁 initial-state-evolution/
 ├── automata.html            # Single Conway's Game of Life automata for example
 ├── automata.js              # Logic for Conway's Game of Life (used in automata.html)
 ├── draw_node.js             # Main project file (entry point)
