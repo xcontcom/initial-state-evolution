@@ -4,39 +4,32 @@
 
 **Turing-complete gladiators in the Game of Life.**
 
-This project explores a novel evolutionary system where the **initial states** of Conway’s Game of Life are evolved using **genetic algorithms**. Unlike traditional simulations where behavior is hand-crafted, here we let **evolution do the crafting**, using Conway's Game of Life as the computational medium.
+Explore a computational universe where two fields evolve together, shaping each other’s behavior in Conway’s Game of Life—a **Turing-complete** system capable of producing anything from logic gates to glider-based processors or even neural-like structures. This project uses a genetic algorithm to evolve the **initial states** of two fields, creating patterns that emerge not by design, but through co-evolutionary pressure.
 
 ## 🧬 Genetic Search in a Turing-Complete Universe
 
-Conway’s Game of Life is **Turing-complete**. That means it can simulate any computable process — logic gates, circuits, glider guns, even digital computers.
-
-But Turing-completeness doesn’t guarantee meaningful behavior — just that it’s possible.
-
-> So how do we find those rare, meaningful behaviors in an infinite space of chaos?
-
-We evolve them.
-
-The genetic algorithm becomes our **navigator**, a blind but relentless searcher. It doesn’t know what a clock is, or a glider, or a machine — but it rewards **activity, change, and interaction**. Slowly, patterns emerge.
-
-Not because we designed them — but because the **substrate allows them**, and the **fitness pressure pulls them from the void**.
-
-This isn’t just a simulation. It’s an **expedition into possibility**.
+Conway’s Game of Life is more than a simulation—it’s a Turing-complete substrate where any computable process can theoretically emerge, given the right initial conditions. Finding those conditions in an infinite space of possibilities is the challenge. Here, we let a genetic algorithm navigate this space, evolving two fields that influence each other to produce dynamic, computational patterns. The result is an experiment in emergent complexity, where simple rules and co-evolution can lead to surprising outcomes.
 
 ## 🧠 How It Works
 
-- The grid (2D bitfield) is the **genome**.
-- Conway's Game of Life is the fixed rule (**environment**).
-- Each individual is a **field** (not just a cell or a rule).
-- Two populations evolve **in parallel**.
-- At each epoch, a pair from each population is combined and evolved together on a toroidal grid.
-- After 100 steps, fitness is measured by how much the **other field** changes from step 100 to 101.
+- **The Grid**: Two fields (A and B) form a combined toroidal grid, with A’s top edge adjacent to B’s bottom, and B’s top edge wrapping to A’s bottom, creating seamless boundary interactions.
+- **The Rule**: A cellular automaton (default: Conway’s Game of Life, customizable) runs for a set number of steps.
+- **Fitness**: Field A’s fitness is the number of cells in Field B that change (“flicker”) between the last two steps. Field B’s fitness is A’s flickering. This mutual dependency drives co-evolution.
+- **Co-Evolution**: Two populations evolve in parallel. Each epoch, pairs of individuals (A[i], B[i]) are combined, evolved under the automaton, and scored based on their effect on each other.
+- **Genetics**:
+  - **Selection**: The top 50% of each population survives, preserving high-fitness patterns.
+  - **Crossover**: Random cell mixing, with half the population kept as parents for stability.
+  - **Mutation**: A low mutation rate (e.g., 1%, 1 cell flip) ensures gradual co-evolution, allowing fields to adapt to each other’s patterns slowly.
+- **Visualization**: The `test100and101steps` function generates a PNG heat map showing flickering (white for changes, black for stable cells), highlighting boundary interactions.
 
 ## ⚔️ Co-evolution, Not Competition
 
-- There are no fixed "predators" or "prey".
-- Fields can attack, defend, or stabilize — it’s up to evolution.
-- Fitness of A = how alive B remains (change between step 100 and 101).
-- And vice versa. This creates **feedback pressure** between populations.
+Unlike traditional competition, this system has no fixed roles. Fields A and B co-evolve, each striving to maximize the other’s computational activity (flickering). They might:
+- Develop patterns that destabilize the other, like glider streams crossing boundaries.
+- Form symbiotic structures, such as oscillators that sustain mutual activity.
+- Evolve computational systems, from logic gates to complex processors, as the Turing-complete substrate allows.
+
+The toroidal boundaries ensure constant interaction, while the low mutation rate fosters a slow, adaptive “dance” where fields refine their influence over thousands of epochs.
 
 ## 📚 Related Project
 
@@ -46,9 +39,11 @@ Here, we **fix the rule** (Conway’s Game of Life) and evolve the **initial fie
 
 ## 📈 Observations
 
-- Low mutation rates produce slow, stable evolutionary progress.
-- Dispersion of fitness is high initially, but may collapse around epoch 500.
-- This collapse is often followed by **wild fitness fluctuations**, suggesting complex interdependence or critical transitions.
+Experiments reveal diverse behaviors:
+- Smaller grids (e.g., 55x55) may show fitness fluctuations after several hundred epochs, indicating dynamic shifts in co-evolution.
+- Larger grids support more complex patterns but may stabilize without fluctuations, as patterns take longer to propagate.
+- The number of iterations affects pattern reach—fewer iterations limit propagation in large grids, while more iterations allow deeper interactions.
+- These outcomes depend on grid size, iterations, and mutation rate, making experimentation key.
 
 ## 📁 Repo Structure
 
