@@ -4,11 +4,11 @@
 
 **Turing-complete gladiators in the Game of Life.**
 
-Explore a computational universe where two fields evolve together, shaping each other’s behavior in Conway’s Game of Life — a **Turing-complete** system capable of producing anything from logic gates to glider-based processors or even neural-like structures. This project uses a genetic algorithm to evolve the **initial states** of two fields, creating patterns that emerge not by design, but through co-evolutionary pressure.
+Explore a computational universe where two fields evolve together, shaping each other’s behavior in Conway’s Game of Life - a **Turing-complete** system capable of producing anything from logic gates to glider-based processors or even neural-like structures. This project uses a genetic algorithm to evolve the **initial states** of two fields, creating patterns that emerge not by design, but through co-evolutionary pressure.
 
 ## 🧬 Genetic Search in a Turing-Complete Universe
 
-Conway’s Game of Life is more than a simulation — it’s a Turing-complete substrate where any computable process can theoretically emerge, given the right initial conditions. Finding those conditions in an infinite space of possibilities is the challenge. Here, we let a genetic algorithm navigate this space, evolving two fields that influence each other to produce dynamic, computational patterns. The result is an experiment in emergent complexity, where simple rules and co-evolution can lead to surprising outcomes.
+Conway’s Game of Life is more than a simulation - it’s a Turing-complete substrate where any computable process can theoretically emerge, given the right initial conditions. Finding those conditions in an infinite space of possibilities is the challenge. Here, we let a genetic algorithm navigate this space, evolving two fields that influence each other to produce dynamic, computational patterns. The result is an experiment in emergent complexity, where simple rules and co-evolution can lead to surprising outcomes.
 
 ## 🧠 How It Works
 
@@ -35,7 +35,7 @@ The toroidal boundaries ensure constant interaction, while the low mutation rate
 
 This project is a **follow-up** to [Evolving Cellular Automata](https://github.com/xcontcom/evolving-cellular-automata), where the focus was on **evolving the rules** of cellular automata. In that earlier project, the 512-bit rule space defined the genotype, and fitness was tied to patterns produced after N iterations.
 
-Here, we **fix the rule** (Conway’s Game of Life) and evolve the **initial field state** instead — flipping the genetic axis from **rule evolution** to **field evolution**.
+Here, we **fix the rule** (Conway’s Game of Life) and evolve the **initial field state** instead - flipping the genetic axis from **rule evolution** to **field evolution**.
 
 ## 📈 Observations
 
@@ -89,4 +89,4 @@ MIT License. See [LICENSE](LICENSE) for details.
 
 ---
 
-> Built not to model life as it is, but to search for what life *could be* — in Conway’s strange, silent universe.
+> Built not to model life as it is, but to search for what life *could be* - in Conway’s strange, silent universe.
