@@ -4,11 +4,11 @@
 
 **Turing-complete gladiators in the Game of Life.**
 
-Explore a computational universe where two fields evolve together, shaping each other’s behavior in Conway’s Game of Life—a **Turing-complete** system capable of producing anything from logic gates to glider-based processors or even neural-like structures. This project uses a genetic algorithm to evolve the **initial states** of two fields, creating patterns that emerge not by design, but through co-evolutionary pressure.
+Explore a computational universe where two fields evolve together, shaping each other’s behavior in Conway’s Game of Life — a **Turing-complete** system capable of producing anything from logic gates to glider-based processors or even neural-like structures. This project uses a genetic algorithm to evolve the **initial states** of two fields, creating patterns that emerge not by design, but through co-evolutionary pressure.
 
 ## 🧬 Genetic Search in a Turing-Complete Universe
 
-Conway’s Game of Life is more than a simulation—it’s a Turing-complete substrate where any computable process can theoretically emerge, given the right initial conditions. Finding those conditions in an infinite space of possibilities is the challenge. Here, we let a genetic algorithm navigate this space, evolving two fields that influence each other to produce dynamic, computational patterns. The result is an experiment in emergent complexity, where simple rules and co-evolution can lead to surprising outcomes.
+Conway’s Game of Life is more than a simulation — it’s a Turing-complete substrate where any computable process can theoretically emerge, given the right initial conditions. Finding those conditions in an infinite space of possibilities is the challenge. Here, we let a genetic algorithm navigate this space, evolving two fields that influence each other to produce dynamic, computational patterns. The result is an experiment in emergent complexity, where simple rules and co-evolution can lead to surprising outcomes.
 
 ## 🧠 How It Works
 
