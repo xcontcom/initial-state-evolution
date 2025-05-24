@@ -1,5 +1,7 @@
 # Co-evolutionary Cellular Automata
 
+![Heatmap](screenshots/heatmapAB.png)
+
 **Turing-complete gladiators in the Game of Life.**
 
 This project explores a novel evolutionary system where the **initial states** of Conway’s Game of Life are evolved using **genetic algorithms**. Unlike traditional simulations where behavior is hand-crafted, here we let **evolution do the crafting**, using Conway's Game of Life as the computational medium.
