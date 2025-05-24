@@ -13,21 +13,22 @@
     <div class="heatmap-container">
         <div>
             <h3>Population A</h3>
-            <canvas id="heatmapA" width="512" height="400"></canvas>
+            <canvas id="heatmapA" width="512" height="800"></canvas>
         </div>
         <div>
             <h3>Population B</h3>
-            <canvas id="heatmapB" width="512" height="400"></canvas>
+            <canvas id="heatmapB" width="512" height="800"></canvas>
         </div>
         <div>
             <h3>Population Average</h3>
-            <canvas id="heatmapAverage" width="512" height="400"></canvas>
+            <canvas id="heatmapAverage" width="512" height="800"></canvas>
         </div>
     </div>
     <button onclick="saveHeatmaps()">Save Heatmaps as PNG</button>
     <script>
         const sizex = 233; // Match the values from repl.js
         const sizey = 233;
+        const maxFitness = sizex * sizey; // Maximum possible fitness for histogram
 
         async function loadHeatmaps(file) {
             try {
@@ -36,12 +37,22 @@
                     throw new Error(`Failed to fetch ${file}: ${response.statusText}`);
                 }
                 const data = await response.json();
-                console.log(`Loaded ${file}:`, data); // Debug log
+                console.log(`Loaded ${file}:`, data);
                 return data;
             } catch (error) {
                 console.error(`Error loading ${file}:`, error);
                 return [];
             }
+        }
+
+        function computeHistogram(fitnessArray) {
+            const histogram = Array(maxFitness + 1).fill(0);
+            fitnessArray.forEach(fitness => {
+                if (fitness >= 0 && fitness <= maxFitness) {
+                    histogram[Math.round(fitness)]++;
+                }
+            });
+            return histogram;
         }
 
         function drawHeatmap(heatmaps, canvasId) {
@@ -51,7 +62,7 @@
             const height = canvas.height;
             const skip = 1; // Adjust if needed for visibility
             const isAverageHeatmap = canvasId === 'heatmapAverage';
-            const fitnessMax = isAverageHeatmap ? (sizex * sizey) : (heatmaps[0].length - 1);
+            const fitnessMax = isAverageHeatmap ? maxFitness : maxFitness;
             const epochCount = heatmaps.length;
 
             const displayedEpochCount = Math.ceil(epochCount / skip);
@@ -64,37 +75,48 @@
             const cellHeight = height / displayedEpochCount;
 
             if (isAverageHeatmap) {
-                // For heatmapAverage: Plot combined average fitness as white pixels
+                // For heatmapAverage: Plot combined average fitness as a line
+                const maxAvgFitness = Math.max(...heatmaps);
+                const minAvgFitness = Math.min(...heatmaps);
+                const range = maxAvgFitness - minAvgFitness || 1; // Avoid division by zero
+                ctx.strokeStyle = 'white';
+                ctx.beginPath();
                 for (let e = 0; e < displayedEpochCount; e++) {
                     const epochIndex = e * skip;
                     if (epochIndex >= epochCount) break;
-                    const avgFitness = heatmaps[epochIndex]; // Direct value, not an object
+                    const avgFitness = heatmaps[epochIndex];
                     if (typeof avgFitness !== 'number' || isNaN(avgFitness)) {
                         console.warn(`Invalid combined fitness at epoch ${epochIndex}: ${avgFitness}`);
                         continue;
                     }
-                    if (avgFitness < 0 || avgFitness > fitnessMax) {
+                    if (avgFitness < 0 || avgFitness > maxFitness) {
                         console.warn(`Combined fitness out of range at epoch ${epochIndex}: ${avgFitness}`);
                         continue;
                     }
-                    const x = avgFitness * cellWidth;
+                    const x = ((avgFitness - minAvgFitness) / range) * (width - 1);
                     const y = e * cellHeight;
-                    ctx.fillStyle = 'white';
-                    //ctx.fillRect(x, y, cellWidth, cellHeight);
-					ctx.fillRect(x, y, 1, 1);
+                    if (e === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
                 }
+                ctx.stroke();
             } else {
-                // For heatmapA and heatmapB: Plot fitness distribution
+                // For heatmapA and heatmapB: Compute and plot fitness histograms
                 let maxCount = 0;
-                heatmaps.forEach(arr => {
-                    maxCount = Math.max(maxCount, Math.max(...arr));
+                const histograms = heatmaps.map(fitnessArray => {
+                    const hist = computeHistogram(fitnessArray);
+                    maxCount = Math.max(maxCount, Math.max(...hist));
+                    return hist;
                 });
 
                 for (let e = 0; e < displayedEpochCount; e++) {
                     const epochIndex = e * skip;
                     if (epochIndex >= epochCount) break;
+                    const hist = histograms[epochIndex];
                     for (let f = 0; f <= fitnessMax; f++) {
-                        const count = heatmaps[epochIndex][f];
+                        const count = hist[f];
                         if (count > 0) {
                             ctx.fillStyle = 'white';
                             ctx.fillRect(f * cellWidth, e * cellHeight, cellWidth, cellHeight);
@@ -108,13 +130,9 @@
                     const epochIndex = e * skip;
                     if (epochIndex >= epochCount) break;
 
-                    let totalFitness = 0;
-                    let totalIndividuals = 0;
-                    for (let f = 0; f < heatmaps[epochIndex].length; f++) {
-                        const count = heatmaps[epochIndex][f];
-                        totalFitness += f * count;
-                        totalIndividuals += count;
-                    }
+                    const fitnessArray = heatmaps[epochIndex];
+                    const totalFitness = fitnessArray.reduce((sum, f) => sum + f, 0);
+                    const totalIndividuals = fitnessArray.length;
                     const meanFitness = totalIndividuals > 0 ? totalFitness / totalIndividuals : 0;
 
                     const x = meanFitness * cellWidth;

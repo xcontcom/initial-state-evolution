@@ -11,7 +11,7 @@ const sizex = 233;
 const sizey = 233;
 let mutationRate = 1; // 1% mutations
 let mutationGenes = 1; // 1 gen mutate
-const stepsNumber=100;
+const stepsNumber=500;
 const newPopulationRate=0.1;
 
 /// File Storage Functions ///
@@ -397,6 +397,99 @@ function test100and101steps() {
     console.log(`Boundary changes (y=${sizey-10}-${sizey+10}): ${boundaryChanges}/${totalChanges}`);
 }
 
+function test100and101steps2(numStatesToTrack = 10, stepsNumberForTest = stepsNumber) {
+    // Ensure populations are initialized
+    if (!populationA || populationA.length < 2 || !populationB || populationB.length < 2) {
+        console.error("Populations not initialized or too small. Run init() first.");
+        return;
+    }
+
+    const rule = convayRulle();
+
+    // Create combined grid for Field A[1] and Field B[1]
+    const combinedWidth = sizex;
+    const combinedHeight = sizey * 2;
+    const combinedGrid = new Array(combinedWidth);
+    for (let x = 0; x < combinedWidth; x++) {
+        combinedGrid[x] = new Int8Array(combinedHeight);
+        for (let y = 0; y < sizey; y++) {
+            combinedGrid[x][y] = populationA[1][x][y]; // Field A[1]
+        }
+        for (let y = 0; y < sizey; y++) {
+            combinedGrid[x][y + sizey] = populationB[1][x][y]; // Field B[1]
+        }
+    }
+
+    // Run cellular automaton for stepsNumberForTest steps
+    let array = combinedGrid;
+    for (let step = 0; step < stepsNumberForTest; step++) {
+        array = stepFieldCombined(array, rule, combinedWidth, combinedHeight);
+    }
+
+    // Store states from stepsNumberForTest to stepsNumberForTest + numStatesToTrack
+    const states = [cloneField(array, combinedWidth, combinedHeight)]; // Start at stepsNumberForTest
+    for (let step = 0; step < numStatesToTrack; step++) {
+        array = stepFieldCombined(array, rule, combinedWidth, combinedHeight);
+        states.push(cloneField(array, combinedWidth, combinedHeight));
+    }
+
+    // Create change map with grayscale values based on recency
+    const changeMap = new Array(combinedWidth);
+    for (let x = 0; x < combinedWidth; x++) {
+        changeMap[x] = new Float32Array(combinedHeight).fill(0);
+    }
+
+    // Compute changes between consecutive states
+    for (let s = 0; s < numStatesToTrack; s++) {
+        const grayValue = 50 + (205 * s) / (numStatesToTrack - 1); // 50 (oldest) to 255 (newest)
+        for (let x = 0; x < combinedWidth; x++) {
+            for (let y = 0; y < combinedHeight; y++) {
+                if (states[s][x][y] !== states[s + 1][x][y]) {
+                    changeMap[x][y] = Math.max(changeMap[x][y], grayValue);
+                }
+            }
+        }
+    }
+
+    // Create canvas
+    const canvas = createCanvas(combinedWidth, combinedHeight);
+    const ctx = canvas.getContext('2d');
+
+    // Draw changes with grayscale gradient
+    for (let x = 0; x < combinedWidth; x++) {
+        for (let y = 0; y < combinedHeight; y++) {
+            const value = Math.round(changeMap[x][y]);
+            ctx.fillStyle = value > 0 ? `rgb(${value},${value},${value})` : 'black';
+            ctx.fillRect(x, y, 1, 1);
+        }
+    }
+
+    // Save as PNG
+    ensureStorageDir();
+    const outputPath = path.join(storagePath, 'changes_flickering.png');
+    const out = fs.createWriteStream(outputPath);
+    const stream = canvas.createPNGStream();
+    stream.pipe(out);
+    out.on('finish', () => {
+        console.log(`Saved flickering visualization (states ${stepsNumberForTest} to ${stepsNumberForTest + numStatesToTrack}) to ${outputPath}`);
+    });
+
+    // Log boundary changes for the last transition
+    let boundaryChanges = 0;
+    let totalChanges = 0;
+    for (let x = 0; x < combinedWidth; x++) {
+        for (let y = 0; y < combinedHeight; y++) {
+            if (states[numStatesToTrack - 1][x][y] !== states[numStatesToTrack][x][y]) {
+                totalChanges++;
+                if (y >= sizey - 10 && y < sizey + 10) {
+                    boundaryChanges++;
+                }
+            }
+        }
+    }
+    console.log(`Boundary changes (y=${sizey-10}-${sizey+10}, last step): ${boundaryChanges}/${totalChanges}`);
+}
+
 function stepFieldCombined(array, rule, width = sizex, height = sizey) {
 	const temp = new Array(width);
 	for (let x = 0; x < width; x++) {
@@ -491,68 +584,59 @@ function loadBestCombinedAverageFitness() {
 }
 
 function testevolute(epoch) {
-	const maxFitness = sizex * sizey;
-	let arrA = Array(maxFitness + 1).fill(0);
-	let arrB = Array(maxFitness + 1).fill(0);
-	let maxfitA = 0;
-	let maxfitB = 0;
-	let bestIndexA = 0;
-	let bestIndexB = 0;
+    let maxfitA = 0;
+    let maxfitB = 0;
+    let bestIndexA = 0;
+    let bestIndexB = 0;
 
-	for (let i = 0; i < PopulationSize; i++) {
-		if (fitnessA[i] >= 0 && fitnessA[i] <= maxFitness) {
-			arrA[fitnessA[i]]++;
-		}
-		if (fitnessA[i] > maxfitA) {
-			maxfitA = fitnessA[i];
-			bestIndexA = i;
-		}
-		if (fitnessB[i] >= 0 && fitnessB[i] <= maxFitness) {
-			arrB[fitnessB[i]]++;
-		}
-		if (fitnessB[i] > maxfitB) {
-			maxfitB = fitnessB[i];
-			bestIndexB = i;
-		}
-	}
+    // Find best fitness and indices for A and B
+    for (let i = 0; i < PopulationSize; i++) {
+        if (fitnessA[i] > maxfitA) {
+            maxfitA = fitnessA[i];
+            bestIndexA = i;
+        }
+        if (fitnessB[i] > maxfitB) {
+            maxfitB = fitnessB[i];
+            bestIndexB = i;
+        }
+    }
 
-	ensureStorageDir();
-	const heatmapFileA = path.join(storagePath, 'heatmapA.json');
-	const heatmapFileB = path.join(storagePath, 'heatmapB.json');
-	const heatmapAverageFile = path.join(storagePath, 'heatmapAverage.json');
-	let heatmapsA = [];
-	let heatmapsB = [];
-	let heatmapsAverage = [];
-	if (fs.existsSync(heatmapFileA)) {
-		heatmapsA = JSON.parse(fs.readFileSync(heatmapFileA, 'utf8'));
-	}
-	if (fs.existsSync(heatmapFileB)) {
-		heatmapsB = JSON.parse(fs.readFileSync(heatmapFileB, 'utf8'));
-	}
-	if (fs.existsSync(heatmapAverageFile)) {
-		heatmapsAverage = JSON.parse(fs.readFileSync(heatmapAverageFile, 'utf8'));
-	}
-	heatmapsA.push(arrA);
-	heatmapsB.push(arrB);
-	const combinedAverageFitness = calculateCombinedAverageFitness();
-	heatmapsAverage.push(combinedAverageFitness);
-	
-	fs.writeFileSync(heatmapFileA, JSON.stringify(heatmapsA));
-	fs.writeFileSync(heatmapFileB, JSON.stringify(heatmapsB));
-	fs.writeFileSync(heatmapAverageFile, JSON.stringify(heatmapsAverage));
+    // Load existing fitness data
+    ensureStorageDir();
+    const heatmapFileA = path.join(storagePath, 'heatmapA.json');
+    const heatmapFileB = path.join(storagePath, 'heatmapB.json');
+    const heatmapAverageFile = path.join(storagePath, 'heatmapAverage.json');
+    let heatmapsA = [];
+    let heatmapsB = [];
+    let heatmapsAverage = [];
+    if (fs.existsSync(heatmapFileA)) {
+        heatmapsA = JSON.parse(fs.readFileSync(heatmapFileA, 'utf8'));
+    }
+    if (fs.existsSync(heatmapFileB)) {
+        heatmapsB = JSON.parse(fs.readFileSync(heatmapFileB, 'utf8'));
+    }
+    if (fs.existsSync(heatmapAverageFile)) {
+        heatmapsAverage = JSON.parse(fs.readFileSync(heatmapAverageFile, 'utf8'));
+    }
 
-	// Calculate combined average fitness and save if better
-	if (combinedAverageFitness > bestCombinedAverageFitness) {
-		bestCombinedAverageFitness = combinedAverageFitness;
-		saveBestPopulations(combinedAverageFitness);
-	}
+    // Store raw fitness arrays
+    heatmapsA.push([...fitnessA]);
+    heatmapsB.push([...fitnessB]);
+    const combinedAverageFitness = calculateCombinedAverageFitness();
+    heatmapsAverage.push(combinedAverageFitness);
 
+    // Write updated data to files
+    fs.writeFileSync(heatmapFileA, JSON.stringify(heatmapsA));
+    fs.writeFileSync(heatmapFileB, JSON.stringify(heatmapsB));
+    fs.writeFileSync(heatmapAverageFile, JSON.stringify(heatmapsAverage));
 
+    // Calculate combined average fitness and save if better
+    if (combinedAverageFitness > bestCombinedAverageFitness) {
+        bestCombinedAverageFitness = combinedAverageFitness;
+        saveBestPopulations(combinedAverageFitness);
+    }
 
-	//console.log(`(total epochs: ${heatmapsA.length})`);
-	//console.log(`Population A: Best fitness=${maxfitA} (individual ${bestIndexA})`);
-	//console.log(`Population B: Best fitness=${maxfitB} (individual ${bestIndexB})`);
-	console.log(`(total epochs: ${heatmapsA.length}), A=${maxfitA}, B=${maxfitB}, Combined Avg Fitness=${combinedAverageFitness.toFixed(2)}`);
+    console.log(`(total epochs: ${heatmapsA.length}), A=${maxfitA}, B=${maxfitB}, Combined Avg Fitness=${combinedAverageFitness.toFixed(2)}`);
 }
 
 function evil(generations) {
@@ -631,4 +715,4 @@ function restoreBestPopulations() {
 
 init();
 
-module.exports = { evil, recreate, mutate, printBestGrid, restoreBestPopulations, test100and101steps };
+module.exports = { evil, recreate, mutate, printBestGrid, restoreBestPopulations, test100and101steps, test100and101steps2 };
