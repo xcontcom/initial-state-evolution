@@ -1,3 +1,4 @@
+const { createCanvas } = require('canvas');
 const fs = require('fs');
 const path = require('path');
 
@@ -320,6 +321,82 @@ function test(epoch) {
 	evolute();
 }
 
+function test100and101steps() {
+    // Ensure populations are initialized
+    if (!populationA || populationA.length < 2 || !populationB || populationB.length < 2) {
+        console.error("Populations not initialized or too small. Run init() first.");
+        return;
+    }
+
+    const rule = convayRulle();
+
+    // Create a combined grid for Field A[1] and Field B[1]
+    const combinedWidth = sizex; // 233
+    const combinedHeight = sizey * 2; // 466
+    const combinedGrid = new Array(combinedWidth);
+    for (let x = 0; x < combinedWidth; x++) {
+        combinedGrid[x] = new Int8Array(combinedHeight);
+        // Copy Field A[1]
+        for (let y = 0; y < sizey; y++) {
+            combinedGrid[x][y] = populationA[1][x][y]; // First dude from population A
+        }
+        // Copy Field B[1]
+        for (let y = 0; y < sizey; y++) {
+            combinedGrid[x][y + sizey] = populationB[1][x][y]; // First dude from population B
+        }
+    }
+
+    // Run Conway's Game of Life for 100 steps
+    let array = combinedGrid;
+    for (let step = 0; step < stepsNumber; step++) {
+        array = stepFieldCombined(array, rule, combinedWidth, combinedHeight);
+    }
+
+    // Save state at step 100
+    const after100 = cloneField(array, combinedWidth, combinedHeight);
+
+    // Run one more step to 101
+    array = stepFieldCombined(array, rule, combinedWidth, combinedHeight);
+
+    // Create canvas (233x466 pixels, 1 pixel per cell)
+    const canvas = createCanvas(combinedWidth, combinedHeight);
+    const ctx = canvas.getContext('2d');
+
+    // Compare steps 100 and 101, draw white for changes, black for no changes
+    for (let x = 0; x < combinedWidth; x++) {
+        for (let y = 0; y < combinedHeight; y++) {
+            const changed = after100[x][y] !== array[x][y];
+            ctx.fillStyle = changed ? 'white' : 'black';
+            ctx.fillRect(x, y, 1, 1); // 1x1 pixel per cell
+        }
+    }
+
+    // Save canvas as PNG
+    ensureStorageDir();
+    const outputPath = path.join(storagePath, 'changes_100_101.png');
+    const out = fs.createWriteStream(outputPath);
+    const stream = canvas.createPNGStream();
+    stream.pipe(out);
+    out.on('finish', () => {
+        console.log(`Saved changes visualization to ${outputPath}`);
+    });
+
+    // Optional: Log boundary changes for insight
+    let boundaryChanges = 0;
+    let totalChanges = 0;
+    for (let x = 0; x < combinedWidth; x++) {
+        for (let y = 0; y < combinedHeight; y++) {
+            if (after100[x][y] !== array[x][y]) {
+                totalChanges++;
+                if (y >= sizey - 10 && y < sizey + 10) { // Near y=232/233 boundary
+                    boundaryChanges++;
+                }
+            }
+        }
+    }
+    console.log(`Boundary changes (y=${sizey-10}-${sizey+10}): ${boundaryChanges}/${totalChanges}`);
+}
+
 function stepFieldCombined(array, rule, width = sizex, height = sizey) {
 	const temp = new Array(width);
 	for (let x = 0; x < width; x++) {
@@ -554,4 +631,4 @@ function restoreBestPopulations() {
 
 init();
 
-module.exports = { evil, recreate, mutate, printBestGrid, restoreBestPopulations };
+module.exports = { evil, recreate, mutate, printBestGrid, restoreBestPopulations, test100and101steps };
