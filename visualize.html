@@ -62,7 +62,7 @@
             const height = canvas.height;
             const skip = 1; // Adjust if needed for visibility
             const isAverageHeatmap = canvasId === 'heatmapAverage';
-            const fitnessMax = isAverageHeatmap ? maxFitness : maxFitness;
+            const fitnessMax = maxFitness;
             const epochCount = heatmaps.length;
 
             const displayedEpochCount = Math.ceil(epochCount / skip);
@@ -75,12 +75,7 @@
             const cellHeight = height / displayedEpochCount;
 
             if (isAverageHeatmap) {
-                // For heatmapAverage: Plot combined average fitness as a line
-                const maxAvgFitness = Math.max(...heatmaps);
-                const minAvgFitness = Math.min(...heatmaps);
-                const range = maxAvgFitness - minAvgFitness || 1; // Avoid division by zero
-                ctx.strokeStyle = 'white';
-                ctx.beginPath();
+                // For heatmapAverage: Plot combined average fitness as white dots (scaled 0 to maxFitness)
                 for (let e = 0; e < displayedEpochCount; e++) {
                     const epochIndex = e * skip;
                     if (epochIndex >= epochCount) break;
@@ -93,6 +88,24 @@
                         console.warn(`Combined fitness out of range at epoch ${epochIndex}: ${avgFitness}`);
                         continue;
                     }
+                    const x = avgFitness * cellWidth;
+                    const y = e * cellHeight;
+                    ctx.fillStyle = 'white';
+                    ctx.fillRect(x, y, 1, 1);
+                }
+
+                // Add a purple line with scaling to the range of combined average fitness values
+                const maxAvgFitness = Math.max(...heatmaps);
+                const minAvgFitness = Math.min(...heatmaps);
+                const range = maxAvgFitness - minAvgFitness || 1; // Avoid division by zero
+                ctx.strokeStyle = 'rgb(147,112,219)'; // Medium Purple
+                ctx.beginPath();
+                for (let e = 0; e < displayedEpochCount; e++) {
+                    const epochIndex = e * skip;
+                    if (epochIndex >= epochCount) break;
+                    const avgFitness = heatmaps[epochIndex];
+                    if (typeof avgFitness !== 'number' || isNaN(avgFitness)) continue;
+                    if (avgFitness < 0 || avgFitness > maxFitness) continue;
                     const x = ((avgFitness - minAvgFitness) / range) * (width - 1);
                     const y = e * cellHeight;
                     if (e === 0) {
