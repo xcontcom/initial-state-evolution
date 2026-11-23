@@ -1,0 +1,3 @@
+scan_ga.js - to run this thing;
+schedule.js - list of experiments;
+view_ga.html - view data from browser (browser must go with --disable-web-security flag to load from file://)
