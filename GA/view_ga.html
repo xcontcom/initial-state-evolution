@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Initial-field GA — two interacting populations</title>
+<style>
+body{font:14px Arial,sans-serif;color:#222;margin:14px;background:#fff}
+h1{font-size:21px;margin:0 0 8px}
+p{line-height:1.4;max-width:1100px;margin:5px 0 11px}
+button,input,select{font:inherit}
+#toolbar{position:sticky;top:0;background:white;z-index:2;border-bottom:1px solid #bbb;padding:7px 0 9px}
+#selector{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+#experiment{max-width:min(80vw,800px);min-width:240px}
+#tabs{display:flex;gap:5px;margin-top:10px}
+.tab{border:1px solid #bbb;background:#eee;padding:7px 16px;cursor:pointer}
+.tab.active{background:#303030;border-color:#303030;color:white}
+#status{font-size:13px;color:#555;margin:10px 0;white-space:pre-wrap}
+#status.error{color:#b00000}
+section[hidden]{display:none}
+h2{font-size:17px;margin:18px 0 8px}
+.controls{display:flex;align-items:center;flex-wrap:wrap;gap:8px 20px;margin:12px 0}
+.controls label{white-space:nowrap}
+.controls select,.controls input{margin-left:5px}
+.controls input[type=number]{width:65px}
+#graphs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;align-items:start}
+.figure{min-width:0;max-width:100%}
+.figure b{display:block;margin-bottom:5px}
+.figure canvas{display:block;width:100%;max-width:591px;height:auto;image-rendering:pixelated}
+.foot{font-size:12px;color:#555;margin-top:5px}
+.meanLegend{display:inline-flex;align-items:center;gap:5px;margin-right:12px}
+.meanSwatch{display:inline-block;width:18px;height:3px;vertical-align:middle}
+@media(max-width:1100px){#graphs{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:680px){#graphs{grid-template-columns:minmax(0,1fr)}}
+#readout{font:12px Consolas,'Courier New',monospace;color:#555;min-height:20px;margin-top:7px}
+#topTableWrap{overflow-x:auto;max-width:100%;margin:10px 0}
+table{border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap}
+th,td{border:1px solid #ccc;padding:5px 8px;text-align:right}
+th{background:#eee}
+th:first-child,td:first-child{text-align:left}
+tbody tr{cursor:pointer}
+tbody tr:hover{background:#eee}
+tbody tr.selected{background:#d6ebff}
+tbody tr:focus-visible{outline:2px solid #444;outline-offset:-2px}
+#previewControls{display:flex;align-items:center;gap:8px;margin:9px 0}
+#previewSteps{font:13px Consolas,'Courier New',monospace;margin-left:10px}
+#pairPreview{width:534px;height:auto;max-width:100%;image-rendering:pixelated;display:block;border:1px solid #777;background:#000}
+#pairDetails{font:12px Consolas,'Courier New',monospace;white-space:pre-wrap;margin:8px 0 3px;line-height:1.5}
+@media(max-width:700px){body{margin:8px}#toolbar{position:static}#experiment{min-width:140px}}
+</style>
+</head>
+<body>
+<h1>Initial-field genetic evolution — interacting populations A and B</h1>
+<p>Two independent populations of square binary initial fields. One A and one shuffled B are joined into one horizontal torus for 512 steps. Fixed outer-totalistic rules alternate on odd/even steps.</p>
+<div id="toolbar">
+	<div id="selector"><label>Experiment <select id="experiment"></select></label><label>Runs <select id="run"><option value="0">All available runs</option></select></label><span id="completed"></span></div>
+	<div id="tabs"><button class="tab active" type="button" data-tab="evolution">1. Evolution</button><button class="tab" type="button" data-tab="tops">2. Top pairs</button></div>
+	<div id="readout">Move over a graph to inspect an epoch and fitness bin.</div>
+</div>
+<div id="status">Checking saved experiments…</div>
+<section id="tab_evolution">
+	<h2>Evolution — fitness distributions by population</h2>
+	<div class="controls">
+		<label>Metric <select id="metric"><option value="stored">Stored best fitness</option><option value="current">Current fitness</option><option value="recovery">Maximum recovery</option></select></label>
+		<label>Brightness <select id="brightness"><option value="linear" selected>Linear frequency</option><option value="log">Log frequency</option></select></label>
+		<label>Normalize <select id="normalize"><option value="epoch">Within each epoch</option><option value="global">Whole graph</option></select></label>
+		<label>Gamma <input type="number" id="gamma" min="0.05" max="3" step="0.05" value="1"></label>
+		<label>Max Y <input type="number" id="maxY" min="0.000001" step="any" value="255"></label>
+		<label><input type="checkbox" id="showMean"> Mean</label>
+		<label><input type="checkbox" id="grid"> Grid</label>
+	</div>
+	<div id="graphs">
+		<div class="figure"><b>Population A</b><canvas id="heatA" width="591" height="576"></canvas><div class="foot" id="footA"></div></div>
+		<div class="figure"><b>Population B</b><canvas id="heatB" width="591" height="576"></canvas><div class="foot" id="footB"></div></div>
+		<div class="figure"><b>Means — A and B</b><canvas id="meansAB" width="591" height="576"></canvas><div class="foot" id="footMeans"><span class="meanLegend"><span class="meanSwatch" style="background:#ff00ff"></span>A</span><span class="meanLegend"><span class="meanSwatch" style="background:#00eaff"></span>B</span></div></div>
+	</div>
+</section>
+<section id="tab_tops" hidden>
+	<h2>Top observed A–B field pairings</h2>
+	<p>These are initial-field pairings that were actually simulated together, not pairs reconstructed from unrelated best individuals.</p>
+	<div class="controls">
+		<label>Sort by <select id="topSort"><option value="joint">Mean of both fitnesses</option><option value="scoreA">Fitness A</option><option value="scoreB">Fitness B</option></select></label>
+		<label>Top <input type="number" id="topCount" min="1" max="120" step="1" value="10"></label>
+	</div>
+	<div id="topTableWrap"><table id="topTable"><thead><tr><th>Rank</th><th>Run</th><th>Epoch</th><th>A index</th><th>B index</th><th>Mean</th><th>Fitness A</th><th>Fitness B</th></tr></thead><tbody></tbody></table></div>
+	<h3>Selected pair — CA simulation</h3>
+	<div id="previewControls">
+		<button type="button" id="previewStart">Start</button>
+		<button type="button" id="previewStop">Stop</button>
+		<button type="button" id="previewClear">Clear</button>
+		<button type="button" id="previewOneStep">One step</button>
+		<button type="button" id="previewCountStop">Count with stop</button>
+		<label>Steps <input type="number" id="previewCountValue" min="1" step="1" value="512"></label>
+		<span id="previewSteps">Steps: 0</span>
+	</div>
+	<canvas id="pairPreview" width="178" height="89"></canvas>
+	<div id="pairDetails">Select a table row.</div>
+</section>
+<script src="schedule.js"></script>
+<script src="ca_preview.js"></script>
+<script src="view_ga.js"></script>
+</body>
+</html>
