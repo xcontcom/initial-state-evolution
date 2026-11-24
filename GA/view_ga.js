@@ -3,6 +3,8 @@ const $=id=>document.getElementById(id);
 const FIG_W=512,FIG_H=512,MARGIN_LEFT=62,MARGIN_TOP=12;
 const GRAPH_W=591,GRAPH_H=576;
 let DATA=null,ACTIVE=null,RUNS=[],topShown=[],selectedPairKey=null,loadingToken=0;
+const experimentProgress=new Map();
+let resultsScriptQueue=Promise.resolve();
 // One persistent animation timer. Loading another top pair must NOT stop it.
 let previewField=null,previewNext=null,previewRuleA=0,previewRuleB=0,previewApi=null;
 let previewStep=0,previewTimer=null,previewPixels=null;
@@ -24,6 +26,96 @@ function loadScript(url){
 		document.head.appendChild(script);
 	});
 }
+// All results.js files assign the same global. Serialize loads so that
+// scanning experiment progress cannot interfere with the selected viewer.
+function readResultsScript(url){
+	const task=resultsScriptQueue.then(async()=>{
+		window.InitialFieldGAPayload=null;
+		try{
+			await loadScript(url);
+			return window.InitialFieldGAPayload;
+		}finally{
+			window.InitialFieldGAPayload=null;
+		}
+	});
+	resultsScriptQueue=task.then(()=>{},()=>{});
+	return task;
+}
+function validResult(data,exp){
+	return data&&(data.format==='INITIAL_FIELD_GA_V1'||data.format==='INITIAL_FIELD_GA_V2')&&
+		data.experiment&&data.experiment.id===exp.id&&
+		Array.isArray(data.experiment.rules)&&data.experiment.rules.join(',')===exp.rules.join(',')&&
+		Number.isInteger(data.completed)&&data.completed>=0;
+}
+function recordProgress(exp,index,completed){
+	let runs=experimentProgress.get(exp.id);
+	if(!runs){
+		runs=Array(exp.runs).fill(undefined);
+		experimentProgress.set(exp.id,runs);
+	}
+	if(index>=0&&index<runs.length)runs[index]=completed;
+	updateExperimentLabel(exp);
+}
+function progressLabel(exp){
+	const runs=experimentProgress.get(exp.id);
+	if(!runs||runs.some(n=>n===undefined))return 'CHECKING';
+	// The requested epoch count belongs to the schedule, not an experiment spec.
+	const target=window.InitialGASchedule.EPOCHS;
+	const completed=runs.filter(n=>n!==null&&n>=target).length;
+	if(completed===exp.runs)return 'COMPLETE '+completed+'/'+exp.runs+' runs';
+	const started=runs.filter(n=>n!==null&&n>0);
+	if(!started.length)return 'NOT STARTED';
+	if(exp.runs===1)return 'IN PROGRESS '+started[0]+'/'+target;
+	const total=runs.reduce((sum,n)=>sum+(n===null?0:Math.min(n,target)),0);
+	return 'IN PROGRESS '+completed+'/'+exp.runs+' runs complete · '+total+'/'+(exp.runs*target)+' epochs';
+}
+function updateExperimentLabel(exp){
+	const picker=$('experiment');
+	for(const option of picker.options){
+		if(option.value!==exp.id)continue;
+		option.textContent='['+progressLabel(exp)+'] '+exp.ruleFolder+' / '+exp.id;
+		break;
+	}
+}
+async function checkExperimentProgress(choices){
+	// Fast path: the scanner writes this tiny index after every saved epoch.
+	// A script tag (not fetch) works locally in Chrome with file://.
+	const ruleFolder=choices[0].ruleFolder;
+	let indexed=null;
+	try{
+		window.InitialFieldGAProgress=null;
+		await loadScript('data/'+ruleFolder+'/progress.js');
+		indexed=window.InitialFieldGAProgress;
+	}catch(err){
+		// The old scanner did not create progress.js; scan results.js below.
+	}
+	if(indexed&&indexed.format==='INITIAL_FIELD_GA_PROGRESS_V1'&&
+		indexed.ruleFolder===ruleFolder&&indexed.experiments){
+		for(const exp of choices){
+			const item=indexed.experiments[exp.id];
+			if(!item||!Array.isArray(item.runs))continue;
+			for(let i=0;i<exp.runs;i++){
+				const count=item.runs[i];
+				recordProgress(exp,i,Number.isInteger(count)&&count>=0?count:null);
+			}
+		}
+	}
+	// If this is an existing scan that has not yet been restarted with the
+	// updated scanner, discover its status directly from saved results.
+	for(const exp of choices){
+		for(let i=0;i<exp.runs;i++){
+			const current=experimentProgress.get(exp.id);
+			if(current&&current[i]!==undefined)continue;
+			try{
+				const data=await readResultsScript(window.InitialGASchedule.runFolder(exp,i)+'/results.js');
+				recordProgress(exp,i,validResult(data,exp)?data.completed:null);
+			}catch(err){
+				recordProgress(exp,i,null);
+			}
+		}
+	}
+}
+
 function updateMetricOptions(){
 	const selected=DATA.experiment.score==='max_recovery'?'recovery':'flickering';
 	const picker=$('metric'),previous=picker.value;
@@ -34,7 +126,7 @@ function updateMetricOptions(){
 		option.value=name;option.textContent=metricLabels[name];
 		picker.appendChild(option);
 	}
-	picker.value=[...picker.options].some(option=>option.value===previous)?previous:'stored';
+	picker.value=[...picker.options].some(option=>option.value===previous)?previous:picker.options[0].value;
 
 }
 function combinedData(runs){
@@ -65,7 +157,20 @@ function combinedData(runs){
 		runsLoaded:runs.length,runNumbers:runs.map(run=>run.index)};
 }
 function resetMaxY(){
-	$('maxY').value=DATA&&DATA.experiment.score==='flickering'?String(DATA.experiment.fieldSize[0]*DATA.experiment.fieldSize[1]):'255';
+	if(!DATA||!DATA.history.length){
+		$('maxY').value='1';
+		return;
+	}
+	const metric=$('metric').value;
+	let maximum=0;
+	for(const epoch of DATA.history){
+		for(const side of ['A','B']){
+			for(const value of epoch[side][metric]){
+				if(Number.isFinite(value)&&value>maximum)maximum=value;
+		}
+		}
+	}
+	$('maxY').value=String(maximum>0?maximum:1);
 }
 function chooseRuns(){
 	if(!ACTIVE)return;
@@ -102,20 +207,17 @@ async function openExperiment(){
 	const all=document.createElement('option');all.value='0';all.textContent='All available runs';picker.appendChild(all);
 	for(let index=0;index<item.runs;index++){
 		const url=window.InitialGASchedule.runFolder(item,index)+'/results.js';
-		window.InitialFieldGAPayload=null;
 		try{
-			await loadScript(url);
+			const data=await readResultsScript(url);
 			if(token!==loadingToken)return;
-			const data=window.InitialFieldGAPayload;
-			if(!data||(data.format!=='INITIAL_FIELD_GA_V1'&&data.format!=='INITIAL_FIELD_GA_V2')||data.experiment.id!==item.id||
-				data.experiment.rules.join(',')!==item.rules.join(',')){
-				throw Error('Unexpected results.js format in '+url);
-			}
+			if(!validResult(data,item))throw Error('Unexpected results.js format in '+url);
 			RUNS.push({index:index+1,data});
+			recordProgress(item,index,data.completed);
 		}catch(err){
 			if(token!==loadingToken)return;
 			// Missing results.js is normal: the scanner may not have reached this run.
 			if(!/Cannot load/.test(err.message))console.warn(err);
+			recordProgress(item,index,null);
 		}
 	}
 	if(token!==loadingToken)return;
@@ -170,6 +272,29 @@ function epochMeans(side){
 		for(const value of values)sum+=value;
 		return sum/values.length;
 	});
+}
+// Centered moving average across epochs. At either end we use only
+// existing epochs; no zero-padding. N=1 returns the original mean series.
+function convolveMean(values){
+	if(!$('convolution').checked)return values;
+	const windowSize=Math.max(1,Math.floor(Number($('convolutionWindow').value)||1));
+	if(windowSize===1)return values;
+	const left=Math.floor((windowSize-1)/2);
+	const right=windowSize-1-left;
+	const result=new Array(values.length);
+	for(let i=0;i<values.length;i++){
+		let sum=0,count=0;
+		for(let j=Math.max(0,i-left);j<=Math.min(values.length-1,i+right);j++){
+			if(!Number.isFinite(values[j]))continue;
+			sum+=values[j];
+			count++;
+		}
+		result[i]=count?sum/count:NaN;
+	}
+	return result;
+}
+function displayedMeans(side){
+	return convolveMean(epochMeans(side));
 }
 function tickNumber(n){
 	return Number(n.toFixed(5)).toLocaleString('en-US',{maximumFractionDigits:5});
@@ -251,10 +376,10 @@ function drawGraph(side){
 	}
 	ctx.putImageData(img,MARGIN_LEFT,MARGIN_TOP);
 	if($('showMean').checked){
-		const values=epochMeans(side);
+		const values=displayedMeans(side);
 		// Dark outline keeps the optional mean curve visible over bright bins.
 		drawMeanLine(ctx,values,yMax,'#222',4);
-		drawMeanLine(ctx,values,yMax,'#fff',2);
+		drawMeanLine(ctx,values,yMax,side==='A'?'#ff00ff':'#00eaff',2);
 	}
 	drawAxis(ctx,yMax);
 	const last=DATA.history[DATA.history.length-1];
@@ -273,7 +398,7 @@ function drawMeans(){
 			ctx.strokeStyle='#333';ctx.beginPath();ctx.moveTo(MARGIN_LEFT,y+0.5);ctx.lineTo(MARGIN_LEFT+FIG_W,y+0.5);ctx.stroke();
 		}
 	}
-	const meanA=epochMeans('A'),meanB=epochMeans('B');
+	const meanA=displayedMeans('A'),meanB=displayedMeans('B');
 	drawMeanLine(ctx,meanA,yMax,'#ff00ff',2);
 	drawMeanLine(ctx,meanB,yMax,'#00eaff',2);
 	drawAxis(ctx,yMax);
@@ -306,13 +431,7 @@ function meanHover(event){
 	const epoch=Math.floor(x/FIG_W*DATA.experiment.epochs);
 	if(epoch>=DATA.completed)return;
 	const metric=$('metric').value;
-	const mean=side=>{
-		const values=DATA.history[epoch][side][metric];
-		let sum=0;
-		for(const value of values)sum+=value;
-		return values.length?sum/values.length:NaN;
-	};
-	const a=mean('A'),b=mean('B');
+	const a=displayedMeans('A')[epoch],b=displayedMeans('B')[epoch];
 	$('readout').textContent='Epoch '+(epoch+1)+' | '+metricLabels[metric]+
 		' | A mean '+format(a)+' | B mean '+format(b);
 }
@@ -443,7 +562,7 @@ function init(){
 	const select=$('experiment');
 	for(const exp of choices){
 		const option=document.createElement('option');option.value=exp.id;
-		option.textContent=exp.ruleFolder+' / '+exp.id+' · '+exp.runs+' runs';
+		option.textContent='[CHECKING] '+exp.ruleFolder+' / '+exp.id;
 		select.appendChild(option);
 	}
 	for(const tab of document.querySelectorAll('.tab'))tab.addEventListener('click',()=>chooseTab(tab.dataset.tab));
@@ -454,12 +573,16 @@ function init(){
 	$('previewCountStop').addEventListener('click',previewCountWithStop);
 	select.addEventListener('change',openExperiment);
 	$('run').addEventListener('change',chooseRuns);
-	for(const id of ['metric','brightness','normalize','gamma','maxY','showMean','grid'])$(id).addEventListener('change',drawGraphs);
+	$('metric').addEventListener('change',()=>{resetMaxY();drawGraphs();});
+	for(const id of ['brightness','normalize','gamma','maxY','showMean','convolution','convolutionWindow','grid'])$(id).addEventListener('change',drawGraphs);
 	for(const id of ['topSort','topCount'])$(id).addEventListener('change',drawTopPairs);
 	for(const side of ['A','B'])$('heat'+side).addEventListener('mousemove',e=>graphHover(e,side));
 	$('meansAB').addEventListener('mousemove',meanHover);
 	blankGraphs();
 	clearPreviewField();
-	if(choices.length)openExperiment();else setStatus('No experiments in schedule.js.',true);
+	if(choices.length){
+		openExperiment();
+		checkExperimentProgress(choices).catch(err=>console.warn('Progress check failed',err));
+	}else setStatus('No experiments in schedule.js.',true);
 }
 init();

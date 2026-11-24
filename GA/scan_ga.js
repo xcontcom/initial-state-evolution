@@ -18,6 +18,50 @@ function atomicWrite(filename,data){
 function jsonFile(filename,value){atomicWrite(filename,JSON.stringify(value));}
 function loadJson(filename){return JSON.parse(fs.readFileSync(filename,'utf8'));}
 function directory(exp,index){return path.join(__dirname,runFolder(exp,index));}
+
+// Small, automatically maintained progress index for the file:// viewer.
+// Read just the beginning of each checkpoint: "completed" is its first key.
+// This also indexes experiments finished before the new viewer was installed.
+const progressIndex=new Map();
+function savedEpochCount(exp,index){
+	const filename=path.join(directory(exp,index),'checkpoint.json');
+	if(!fs.existsSync(filename))return null;
+	const fd=fs.openSync(filename,'r');
+	try{
+		const b=Buffer.alloc(128);
+		const n=fs.readSync(fd,b,0,b.length,0);
+		const match=/^\s*\{\s*"completed"\s*:\s*(\d+)/.exec(b.toString('utf8',0,n));
+		return match?Number(match[1]):null;
+	}finally{fs.closeSync(fd);}
+}
+function writeProgressIndex(ruleFolder){
+	const experiments={};
+	for(const [id,info] of progressIndex){
+		if(info.ruleFolder!==ruleFolder)continue;
+		experiments[id]={epochs:EPOCHS,runs:info.runs};
+	}
+	atomicWrite(path.join(__dirname,'data',ruleFolder,'progress.js'),
+		'window.InitialFieldGAProgress='+JSON.stringify({
+			format:'INITIAL_FIELD_GA_PROGRESS_V1',ruleFolder,experiments
+		})+';\n');
+}
+function initializeProgressIndex(queue){
+	const folders=new Set();
+	for(const exp of queue){
+		progressIndex.set(exp.id,{
+			ruleFolder:exp.ruleFolder,
+			runs:Array.from({length:exp.runs},(_,i)=>savedEpochCount(exp,i))
+		});
+		folders.add(exp.ruleFolder);
+	}
+	for(const folder of folders)writeProgressIndex(folder);
+}
+function updateProgressIndex(exp,index,completed){
+	const info=progressIndex.get(exp.id);
+	if(!info)return;
+	info.runs[index]=completed;
+	writeProgressIndex(exp.ruleFolder);
+}
 function metadataConfig(exp){
 	return {
 		format:'INITIAL_FIELD_GA_V2',rules:exp.rules,score:exp.score,
@@ -171,6 +215,7 @@ async function runExperiment(exp,index,position,total,signal){
 	while(state.completed<EPOCHS&&!signal.stop){
 		const info=await runEpoch(exp,state);
 		save(dir,exp,state);
+		updateProgressIndex(exp,index,state.completed);
 		evaluated++;
 		const t=Number(process.hrtime.bigint()-at)/1e9;
 		console.log('e'+String(state.completed).padStart(4,'0')+
@@ -185,6 +230,7 @@ async function main(){
 	check(POPULATION_SIZE>=4&&POPULATION_SIZE%4===0,'POPULATION_SIZE must be divisible by four');
 	check(Number.isInteger(EPOCHS)&&EPOCHS>=1,'Bad epoch count');
 	const queue=uniqueExperiments(),signal={stop:false};
+	initializeProgressIndex(queue);
 	process.on('SIGINT',()=>{signal.stop=true;console.log('\nCtrl+C: finishing this epoch before saving.');});
 	process.on('SIGTERM',()=>{signal.stop=true;console.log('\nStop requested: finishing this epoch before saving.');});
 	let position=0;
